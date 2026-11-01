@@ -397,6 +397,18 @@ circuit "suricata" {
     }
   }
 
+  # Ubuntu's package gives /etc/suricata to the suricata user but leaves
+  # suricata.yaml with root. An edit replaces the file from inside the
+  # directory, so the two need one owner. The mode stays as packaged, and
+  # where root owns the directory this changes nothing.
+  step "yaml_owner" {
+    command {
+      command  = "chown -h \"$(stat -c %u /etc/suricata)\" ${local.suricata_yaml}"
+      unless   = "[ \"$(stat -c %u /etc/suricata)\" = \"$(stat -c %u ${local.suricata_yaml})\" ]"
+      triggers = { package = conn3x_package.suricata__package[each.key].revision }
+    }
+  }
+
   # Read last, so the settings in it win.
   step "include" {
     line {

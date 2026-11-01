@@ -8,7 +8,7 @@ You pick the interfaces, your home networks, the rule sources and any rules of y
 
 ```hcl
 module "suricata" {
-  source = "github.com/conn3xorg/circuit-suricata?ref=v0.1.0"
+  source = "github.com/conn3xorg/circuit-suricata?ref=v0.1.1"
 
   hosts                = { sensor1 = "203.0.113.10" }
   ssh_private_key_file = "~/.ssh/id_ed25519"
@@ -118,6 +118,8 @@ Requires Conn3x v0.6.9 or later and systemd on each host, with a package mirror 
 ## Tested on
 
 Ubuntu 24.04, Debian 13, Fedora 45 and Rocky Linux 10. [examples/local](examples/local) was applied to each in arm64 Podman containers, and CI does the same on amd64: it checks that the second plan has no changes and that `suricata -T` passes, then looks up `suricata-check.example.com` in the container and checks the example's custom rule alerts on the query in `eve.json`.
+
+On the same containers, hosts first applied at v0.1.0 and then moved to this version also had a clean second plan and passed those checks. All of it ran on Conn3x v0.6.11 and on a newer development build.
 
 On Ubuntu 24.04 and Rocky Linux 10 droplets, with SELinux enforcing on Rocky Linux, the same checks passed by hand, with Suricata watching the interface of the default route. A DNS query for the test name to `1.1.1.1` raised the alert on each. After a reboot, Suricata came back with its command socket, the plan had no changes, and the alert fired again. The daily timer's service, started by hand, updated the rules and reloaded them on both. On Rocky Linux, COPR's package has no SELinux policy of its own, so Suricata runs as `unconfined_service_t`; the audit log had no denials.
 
