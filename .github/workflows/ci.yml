@@ -89,6 +89,23 @@ jobs:
           done
           exit 1
           EOF
+      - name: Links beside the live files leave what they point to as it was
+        working-directory: examples/local
+        run: |
+          sudo podman exec circuit-suricata sh -ec '
+            cp /etc/passwd /root/keep
+            cd /etc/suricata
+            echo "# changed" >> conn3x.rules
+            ln -s /root/keep conn3x.rules.old
+            ln -s /root/keep conn3x.yaml.new
+            stat -c "%U:%G %a" /root/keep > /root/keep.want
+            sha256sum < /root/keep >> /root/keep.want
+          '
+          conn3x apply -auto-approve
+          sudo podman exec circuit-suricata sh -ec '
+            { stat -c "%U:%G %a" /root/keep; sha256sum < /root/keep; } | cmp - /root/keep.want
+          '
+          conn3x plan -detailed-exitcode
       - name: Clean up
         if: always()
         working-directory: examples/local

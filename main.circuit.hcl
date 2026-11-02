@@ -71,14 +71,17 @@ locals {
   default_iface = "@DEFAULT_ROUTE_INTERFACE@"
   interfaces    = length(var.interfaces) > 0 ? var.interfaces : [local.default_iface]
   route_iface   = "awk '$2 == \"00000000\" { print $1; exit }' /proc/net/route"
-  render        = "i=$(${local.route_iface}) && [ -n \"$i\" ] && sed \"s/${local.default_iface}/$i/\" ${local.config_file}.in"
+  render        = "i=$(${local.route_iface}) && [ -n \"$i\" ] && sed \"s/${local.default_iface}/$i/\" ${local.work_dir}/conn3x.yaml.in"
 
   suricata_yaml = "/etc/suricata/suricata.yaml"
   config_file   = "/etc/suricata/conn3x.yaml"
   rules_file    = "/etc/suricata/conn3x.rules"
-  rules_dir     = "/var/lib/suricata/rules"
-  eve_log       = "/var/log/suricata/eve.json"
-  socket        = "/run/suricata/suricata-command.socket"
+  # Candidates and backups stay where only root can reach them, since the
+  # suricata user can own /etc/suricata.
+  work_dir  = "/etc/conn3x/suricata"
+  rules_dir = "/var/lib/suricata/rules"
+  eve_log   = "/var/log/suricata/eve.json"
+  socket    = "/run/suricata/suricata-command.socket"
 
   # Settings here override the same keys in the packaged suricata.yaml,
   # which includes this file last. A key replaces the packaged one whole,
@@ -139,11 +142,11 @@ locals {
   # live settings, through --include, since suricata.yaml only includes
   # them once both have passed. The test logs to a directory of its own,
   # so it never leaves root-owned files where the suricata user writes.
-  install_tested = { for f, settings in { (local.rules_file) = "${local.config_file}.new", (local.config_file) = local.config_file } : f => join(" ", [
-    "cp -p ${f} ${f}.old 2>/dev/null; install -m 0644 ${f}.new ${f} && log=$(mktemp -d) &&",
-    "if suricata -T -c ${local.suricata_yaml} --include ${settings} -l \"$log\"; then rm -rf \"$log\" ${f}.old; else rm -rf \"$log\";",
-    "if [ -e ${f}.old ]; then mv ${f}.old ${f}; else rm -f ${f}; fi;",
-    "echo 'suricata -T failed with ${f}.new in place, so ${f} was put back as it was.' >&2; exit 1; fi",
+  install_tested = { for f, settings in { (local.rules_file) = "${local.work_dir}/conn3x.yaml.new", (local.config_file) = local.config_file } : f => join(" ", [
+    "o=${local.work_dir}/${basename(f)}.old; rm -f \"$o\"; cp -Pp ${f} \"$o\" 2>/dev/null; install -m 0644 ${local.work_dir}/${basename(f)}.new ${f} && log=$(mktemp -d) &&",
+    "if suricata -T -c ${local.suricata_yaml} --include ${settings} -l \"$log\"; then rm -rf \"$log\" \"$o\"; else rm -rf \"$log\";",
+    "if [ -e \"$o\" ] || [ -L \"$o\" ]; then mv \"$o\" ${f}; else rm -f ${f}; fi;",
+    "echo 'suricata -T failed with the new ${f} in place, so ${f} was put back as it was.' >&2; exit 1; fi",
   ]) }
 
   sources = join(" ", sort(var.rule_sources))
@@ -358,24 +361,41 @@ circuit "suricata" {
     notify = [handler.reload]
   }
 
+  step "work_dir" {
+    directory {
+      path  = local.work_dir
+      owner = "root"
+      group = "root"
+      mode  = "0700"
+    }
+  }
+
+  # Earlier versions kept these beside the live files.
+  step "earlier_candidates" {
+    command {
+      command = "cd /etc/suricata && rm -f conn3x.yaml.in conn3x.yaml.new conn3x.yaml.old conn3x.rules.new conn3x.rules.old"
+      unless  = "cd /etc/suricata && [ -z \"$(ls -d conn3x.yaml.in conn3x.yaml.new conn3x.yaml.old conn3x.rules.new conn3x.rules.old 2>/dev/null)\" ]"
+    }
+  }
+
   step "config_template" {
     file {
-      path    = "${local.config_file}.in"
+      path    = "${local.work_dir}/conn3x.yaml.in"
       content = local.config
     }
   }
 
   step "config_candidate" {
     command {
-      command  = "{ ${local.render} > ${local.config_file}.new; } || { echo 'No default IPv4 route to take the interface from. Set interfaces.' >&2; exit 1; }"
-      unless   = "${local.render} | cmp -s - ${local.config_file}.new"
+      command  = "{ ${local.render} > ${local.work_dir}/conn3x.yaml.new; } || { echo 'No default IPv4 route to take the interface from. Set interfaces.' >&2; exit 1; }"
+      unless   = "${local.render} | cmp -s - ${local.work_dir}/conn3x.yaml.new"
       triggers = { template = conn3x_file.suricata__config_template[each.key].revision }
     }
   }
 
   step "rules_candidate" {
     file {
-      path    = "${local.rules_file}.new"
+      path    = "${local.work_dir}/conn3x.rules.new"
       content = local.rules
     }
   }
@@ -383,7 +403,7 @@ circuit "suricata" {
   step "local_rules" {
     command {
       command  = local.install_tested[local.rules_file]
-      unless   = "cmp -s ${local.rules_file}.new ${local.rules_file}"
+      unless   = "cmp -s ${local.work_dir}/conn3x.rules.new ${local.rules_file}"
       triggers = { candidate = conn3x_file.suricata__rules_candidate[each.key].revision }
     }
     notify = [handler.reload]
@@ -392,7 +412,7 @@ circuit "suricata" {
   step "config" {
     command {
       command  = local.install_tested[local.config_file]
-      unless   = "cmp -s ${local.config_file}.new ${local.config_file}"
+      unless   = "cmp -s ${local.work_dir}/conn3x.yaml.new ${local.config_file}"
       triggers = { candidate = conn3x_command.suricata__config_candidate[each.key].revision }
     }
   }
