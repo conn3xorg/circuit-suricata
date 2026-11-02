@@ -1,5 +1,7 @@
 # circuit-suricata
 
+[![Conn3x grade](https://conn3x.org/circuits/suricata/grade.svg)](https://conn3x.org/circuits/suricata/grade)
+
 A Conn3x circuit that installs Suricata as a network intrusion detection system, keeps its rules current with suricata-update, and writes every alert to `eve.json`. Suricata watches a host's traffic as it passes and tells you when something matches a rule: a lookup of a known malware domain, an exploit attempt against a web server, a client speaking a protocol on a port it shouldn't. It doesn't block anything. It's the part of a network you read, not the part that says no.
 
 You pick the interfaces, your home networks, the rule sources and any rules of your own once, and the same setup lands on Ubuntu, Debian, Fedora and Rocky Linux, each from the place OISF, Suricata's maintainers, point to for it. Every change to the settings or your rules is tested with `suricata -T` before Suricata reads it, so a typo in a rule fails the apply and leaves the running sensor alone.
