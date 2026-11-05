@@ -10,7 +10,7 @@ You pick the interfaces, your home networks, the rule sources and any rules of y
 
 ```hcl
 module "suricata" {
-  source = "github.com/conn3xorg/circuit-suricata?ref=v0.1.2"
+  source = "github.com/conn3xorg/circuit-suricata?ref=v0.1.3"
 
   hosts                = { sensor1 = "203.0.113.10" }
   ssh_private_key_file = "~/.ssh/id_ed25519"
