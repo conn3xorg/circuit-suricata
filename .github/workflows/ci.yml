@@ -77,18 +77,22 @@ jobs:
       # suricata-check.example.com. The lookup goes to Podman's resolver over
       # eth0, where Suricata is watching, and the alert lands in eve.json.
       - name: Check a custom rule fires and the alert lands in eve.json
+        working-directory: examples/local
+        run: sudo podman exec -i circuit-suricata sh < check.sh
+      # Restarting the container boots systemd again, so this checks Suricata
+      # comes back by itself with its command socket, still alerts, and the
+      # plan has nothing to do. Loading ET Open takes a minute or so.
+      - name: Restart the host, then check the rule fires and the plan
+        working-directory: examples/local
         run: |
-          sudo podman exec -i circuit-suricata sh -eu <<'EOF'
-          systemctl is-active suricata suricata-rules.timer
-          suricata -T -c /etc/suricata/suricata.yaml -l "$(mktemp -d)"
-          suricata-update list-enabled-sources | grep -qx '  - oisf/trafficid'
-          getent hosts suricata-check.example.com || true
-          for _ in $(seq 30); do
-            grep '"signature_id":9000001' /var/log/suricata/eve.json && exit 0
+          sudo podman restart circuit-suricata
+          for _ in $(seq 60); do
+            case $(sudo podman exec circuit-suricata systemctl is-system-running 2>/dev/null) in running|degraded) break ;; esac
             sleep 1
           done
-          exit 1
-          EOF
+          sudo podman exec circuit-suricata sh -c 'for _ in $(seq 150); do [ -S /run/suricata/suricata-command.socket ] && exit 0; sleep 2; done; exit 1'
+          sudo podman exec -i circuit-suricata sh < check.sh
+          conn3x plan -detailed-exitcode
       - name: Links beside the live files leave what they point to as it was
         working-directory: examples/local
         run: |
