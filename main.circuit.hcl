@@ -440,8 +440,9 @@ circuit "suricata" {
   # A new interface or HOME_NET needs a restart; a rule reload doesn't
   # read them. try-restart leaves a stopped Suricata to the next step.
   step "restart" {
-    command {
-      command = "systemctl try-restart suricata"
+    service_action {
+      name   = "suricata"
+      action = "try-restart"
       triggers = {
         config  = conn3x_command.suricata__config[each.key].revision
         include = conn3x_line.suricata__include[each.key].revision
@@ -467,7 +468,7 @@ circuit "suricata" {
     command {
       command = "for _ in $(seq 150); do [ -S ${local.socket} ] && exit 0; sleep 2; done; echo 'Suricata did not open ${local.socket} within five minutes. See journalctl -u suricata and /var/log/suricata/suricata.log.' >&2; exit 1"
       triggers = {
-        restart = conn3x_command.suricata__restart[each.key].revision
+        restart = conn3x_service_action.suricata__restart[each.key].revision
         running = conn3x_service.suricata__running[each.key].revision
       }
     }
