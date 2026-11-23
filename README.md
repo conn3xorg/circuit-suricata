@@ -115,7 +115,7 @@ Before the circuit runs, the `conn3x_host` data source reads each host's distrib
 
 ## Requirements
 
-Requires Conn3x v0.6.9 or later and systemd on each host, with a package mirror the host can reach. Each host also needs to reach OISF's PPA or COPR repository, or Debian's backports, and the rule sources' download servers, such as `rules.emergingthreats.net`. Ubuntu needs 22.04, 24.04 or 26.04, the releases the PPA builds for.
+Requires Conn3x v0.29.0 or later and systemd on each host, with a package mirror the host can reach. Each host also needs to reach OISF's PPA or COPR repository, or Debian's backports, and the rule sources' download servers, such as `rules.emergingthreats.net`. Ubuntu needs 22.04, 24.04 or 26.04, the releases the PPA builds for.
 
 ## Tested on
 
